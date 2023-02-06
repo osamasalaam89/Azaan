@@ -9,23 +9,27 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import CompassHeading from 'react-native-compass-heading';
+import {Coordinates, CalculationMethod, PrayerTimes} from 'adhan';
+import moment from 'moment';
 
-type listItemTypes = {
+type ListItemTypes = {
   id: string;
   prayerName: string;
-  time: string;
-  isSelected: boolean;
+  prayerTime: Date;
 };
 
 interface ItemProps {
-  item: listItemTypes;
+  item: ListItemTypes;
   isSelected: boolean;
-  onSelect: (item: listItemTypes) => void;
+  onSelect: (item: ListItemTypes) => void;
 }
-const calculateQiblaDirection = (heading: any) => {
-  const meccaDirection = 113.5;
+
+const calculateQiblaDirection = (heading: number) => {
+  console.log('heading', heading);
+  const meccaDirection = 66.52;
   return (meccaDirection - heading + 360) % 360;
 };
+
 const MyItem: FC<ItemProps> = React.memo(({item, isSelected, onSelect}) => (
   <View
     style={{
@@ -41,7 +45,9 @@ const MyItem: FC<ItemProps> = React.memo(({item, isSelected, onSelect}) => (
         justifyContent: 'space-evenly',
         alignItems: 'center',
       }}>
-      <Text style={{textAlign: 'center'}}>{item.time}</Text>
+      <Text style={{textAlign: 'center'}}>
+        {moment(item?.prayerTime).format('LT')}
+      </Text>
       <TouchableOpacity onPress={() => onSelect(item)}>
         <Icon
           name={isSelected ? 'toggle-on' : 'toggle-off'}
@@ -54,20 +60,34 @@ const MyItem: FC<ItemProps> = React.memo(({item, isSelected, onSelect}) => (
 ));
 
 const App: FC = () => {
-  const data: listItemTypes[] = [
-    {id: '1', prayerName: 'Fajr', time: '06:00 AM', isSelected: false},
-    {id: '2', prayerName: 'Dhuhr', time: '01:00 PM', isSelected: false},
-    {id: '3', prayerName: 'Asr', time: '05:00 PM', isSelected: false},
-    {id: '4', prayerName: 'Maghrib', time: '06:30 PM', isSelected: false},
-    {id: '5', prayerName: `Isha'a`, time: '07:00 PM', isSelected: false},
+  const data: ListItemTypes[] = [
+    {id: '1', prayerName: 'Fajr', prayerTime: new Date()},
+    {id: '2', prayerName: 'Dhuhr', prayerTime: new Date()},
+    {id: '3', prayerName: 'Asr', prayerTime: new Date()},
+    {id: '4', prayerName: 'Maghrib', prayerTime: new Date()},
+    {id: '5', prayerName: `Isha`, prayerTime: new Date()},
   ];
 
-  const [selected, setSelected] = useState<listItemTypes[]>([]);
+  const [selected, setSelected] = useState<ListItemTypes[]>([]);
   const [heading, setHeading] = useState(0);
+
+  const coordinates = new Coordinates(24.8615, 67.0099);
+  const params = CalculationMethod.Karachi();
+  const date = new Date(2023, 2, 6);
+  const prayerTimes: any = new PrayerTimes(coordinates, date, params);
+
+  console.log('prayerTimes', prayerTimes);
+
+  const updatedData = data.map(item => {
+    const key = item.prayerName.toLowerCase();
+    if (prayerTimes[key]) {
+      return {...item, prayerTime: prayerTimes[key]};
+    }
+    return item;
+  });
   React.useEffect(() => {
-    const degree_update_rate = 3;
-    CompassHeading.start(degree_update_rate, ({heading, accuracy}) => {
-      console.log('deg', heading, accuracy);
+    const degreeUpdateRate = 3;
+    CompassHeading.start(degreeUpdateRate, ({heading}) => {
       setHeading(heading);
     });
     return () => {
@@ -75,7 +95,7 @@ const App: FC = () => {
     };
   }, []);
 
-  const pressMethod = (item: listItemTypes) => {
+  const pressMethod = (item: ListItemTypes) => {
     setSelected(prevSelected => {
       if (prevSelected.find(selectedItem => selectedItem.id === item.id)) {
         return prevSelected.filter(selectedItem => selectedItem.id !== item.id);
@@ -84,7 +104,7 @@ const App: FC = () => {
     });
   };
 
-  const renderItem = ({item}: {item: listItemTypes}) => (
+  const renderItem = ({item}: {item: ListItemTypes}) => (
     <MyItem
       isSelected={
         selected.find(selectedItem => selectedItem.id === item.id) !== undefined
@@ -98,33 +118,21 @@ const App: FC = () => {
 
   return (
     <View style={{flex: 1, margin: 10}}>
-      <FlatList renderItem={renderItem} data={data} />
-      <View
-        style={{
-          position: 'absolute',
-          width: 40,
-          height: 40,
-          top: 500,
-          left: 200,
-          borderRadius: 50,
-          backgroundColor: 'black',
-        }}
-      />
+      <FlatList renderItem={renderItem} data={updatedData} />
       <Animated.View
         style={{
-          transform: [{rotate: `${heading}deg`}],
+          transform: [{rotate: `${qiblaDegrees}deg`}],
+          marginBottom: 200,
         }}>
         <View
           style={{
-            width: 100,
-            height: 100,
+            width: 50,
+            height: 50,
             borderRadius: 50,
             backgroundColor: 'blue',
           }}
         />
       </Animated.View>
-
-      <Text>Qibla direction: {qiblaDegrees} degrees</Text>
     </View>
   );
 };
